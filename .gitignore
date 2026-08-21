@@ -1,0 +1,16 @@
+# Python / backend
+backend/venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.env
+*.pyc
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+
+# common
+.DS_Store
+
+# agent 전용
+GUIDE.md
