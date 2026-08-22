@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
+from app.models.roadmaps import Roadmap
 from app.auth import SECRET_KEY, ALGORITHM
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -34,3 +35,18 @@ def get_current_user(
         raise credentials_error
 
     return user
+
+def get_owned_roadmap(
+    roadmap_id: int,
+    current_user: User,
+    db: Session
+) -> Roadmap:
+    roadmap = db.get(Roadmap, roadmap_id)
+        
+    if not roadmap or roadmap.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Roadmap not found",
+        )
+
+    return roadmap
