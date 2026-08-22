@@ -14,7 +14,21 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 
     if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.detail ?? `Request failed: ${res.status}`);
+        const detail = body?.detail;
+
+        if (typeof detail === "string") {
+            throw new Error(detail);
+        }
+        // FastAPI의 422 검증 에러는 detail이 객체 배열로 옵니다
+        if (Array.isArray(detail)) {
+            throw new Error(detail.map((d) => d.msg).join(", "));
+        }
+        throw new Error(`Request failed: ${res.status}`);
+    }
+
+    // 204 No Content는 본문이 없어서 res.json()이 실패합니다
+    if (res.status === 204) {
+        return null;
     }
 
     return res.json();
@@ -41,5 +55,100 @@ export function login(email: string, password: string): Promise<Token> {
     return apiFetch("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
+    });
+}
+
+export interface Roadmap {
+    id: number;
+    title: string;
+    description: string | null;
+    created_at: string;
+}
+
+export interface RoadmapCreate {
+    title: string;
+    description?: string | null;
+}
+
+export interface RoadmapUpdate {
+    title?: string;
+    description?: string | null;
+}
+
+export function getRoadmaps(): Promise<Roadmap[]> {
+    return apiFetch("/roadmaps");
+}
+
+export function getRoadmap(id: number): Promise<Roadmap> {
+    return apiFetch(`/roadmaps/${id}`);
+}
+
+export function createRoadmap(req: RoadmapCreate): Promise<Roadmap> {
+    return apiFetch("/roadmaps", {
+        method: "POST",
+        body: JSON.stringify(req),
+    });
+}
+
+export function updateRoadmap(id: number, req: RoadmapUpdate): Promise<Roadmap> {
+    return apiFetch(`/roadmaps/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(req),
+    });
+}
+
+export async function deleteRoadmap(id: number): Promise<void> {
+    await apiFetch(`/roadmaps/${id}`, { method: "DELETE" });
+}
+
+export type NodeStatus = "not_started" | "in_progress" | "done";
+
+export interface RoadmapNode {
+    id: number;
+    roadmap_id: number;
+    parent_node_id: number | null;
+    title: string;
+    description: string | null;
+    order_index: number;
+    status: NodeStatus;
+    created_at: string;
+}
+
+export interface NodeUpdate {
+    title?: string;
+    description?: string | null;
+    status?: NodeStatus;
+    order_index?: number;
+    parent_node_id?: number | null;
+}
+
+export function getNodes(roadmapId: number): Promise<RoadmapNode[]> {
+    return apiFetch(`/roadmaps/${roadmapId}/nodes`);
+}
+
+export function updateNode(
+    roadmapId: number,
+    nodeId: number,
+    req: NodeUpdate
+): Promise<RoadmapNode> {
+    return apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}`, {
+        method: "PATCH",
+        body: JSON.stringify(req),
+    });
+}
+
+export interface NodeCreate {
+    title: string;
+    description?: string | null;
+    parent_node_id?: number | null;
+}
+
+export function createNode(
+    roadmapId: number,
+    req: NodeCreate
+): Promise<RoadmapNode> {
+    return apiFetch(`/roadmaps/${roadmapId}/nodes`, {
+        method: "POST",
+        body: JSON.stringify(req),
     });
 }

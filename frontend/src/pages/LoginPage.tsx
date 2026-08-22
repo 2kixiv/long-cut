@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login as loginRequest } from "../lib/api";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
+import { TextInput } from "../components/ui/TextInput";
+import { Button } from "../components/ui/Button";
+import { ErrorText } from "../components/ui/Message";
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -29,40 +32,36 @@ export function LoginPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-4 px-4">
+    <div className="mx-auto flex min-h-screen max-w-sm animate-rise flex-col justify-center gap-4 px-4">
       <h1 className="text-2xl font-semibold text-center">로그인</h1>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <input
+        <TextInput
           type="email"
           required
-          placeholder="이메일"
+          label="이메일"
+          autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
         />
-        <input
+        <TextInput
           type="password"
           required
-          placeholder="비밀번호"
+          label="비밀번호"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded border border-gray-300 px-3 py-2"
         />
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <ErrorText>{error}</ErrorText>}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-purple-600 px-3 py-2 text-white disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" disabled={submitting}>
           {submitting ? "로그인 중..." : "로그인"}
-        </button>
+        </Button>
       </form>
 
-      <p className="text-center text-sm text-gray-500">
-        계정이 없으신가요? <Link to="/signup" className="text-purple-600">회원가입</Link>
+      <p className="text-center text-sm text-muted">
+        계정이 없으신가요? <Link to="/signup" className="font-medium text-ink underline underline-offset-4 hover:opacity-70">회원가입</Link>
       </p>
     </div>
   );
