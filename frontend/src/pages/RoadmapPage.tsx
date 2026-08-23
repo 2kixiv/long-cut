@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import {
   createNode,
   createNote,
+  deleteNode,
   getNodes,
   getNotes,
   updateNode,
@@ -11,14 +12,16 @@ import {
   type Roadmap,
   type RoadmapNode,
 } from "../lib/api";
-import { groupChildren, pathNodes } from "../lib/nodes";
+import { useConfirm } from "../hooks/useConfirm";
+import { collectSubtreeIds, groupChildren, pathNodes } from "../lib/nodes";
 import { nextStatus } from "../lib/status";
 import { RoadmapPath } from "../components/RoadmapPath";
 import { ProgressBar } from "../components/ui/ProgressBar";
 import { Modal } from "../components/ui/Modal";
 import { TitleDescriptionForm } from "../components/TitleDescriptionForm";
+import { RoadmapSuggestionModal } from "../components/RoadmapSuggestionModal";
 import { Button } from "../components/ui/Button";
-import { PencilIcon } from "../components/ui/icons";
+import { PencilIcon, SparklesIcon } from "../components/ui/icons";
 import { CenteredMessage, ErrorText } from "../components/ui/Message";
 import type { RoadmapsContext } from "../components/AppLayout";
 
@@ -58,18 +61,21 @@ interface ViewProps {
 function RoadmapView({ roadmap, onUpdated }: ViewProps) {
   const id = roadmap.id;
   const navigate = useNavigate();
+  const confirm = useConfirm();
 
   const [nodes, setNodes] = useState<RoadmapNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [pendingId, setPendingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [addingRoot, setAddingRoot] = useState(false);
   // "하위 단계 추가"로 지정된 부모 노드. null이면 닫힌 상태입니다.
   const [addingChildFor, setAddingChildFor] = useState<RoadmapNode | null>(null);
   const [creating, setCreating] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
 
   // 도구에서 띄우는 수정 폼. 대상 노드를 담고 있으며 null이면 닫힌 상태입니다.
   const [editingNode, setEditingNode] = useState<RoadmapNode | null>(null);
@@ -236,6 +242,38 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
     }
   }
 
+  async function handleDeleteNode(node: RoadmapNode) {
+    const ok = await confirm({
+      title: `"${node.title}" 단계를 삭제할까요?`,
+      description: "하위 단계와 그 안의 기록도 함께 삭제됩니다. 되돌릴 수 없습니다.",
+      confirmLabel: "삭제",
+      tone: "danger",
+    });
+
+    if (!ok) return;
+
+    setActionError(null);
+    setDeletingId(node.id);
+
+    try {
+      await deleteNode(id, node.id);
+
+      const removedIds = collectSubtreeIds(nodes, node.id);
+      setNodes((prev) => prev.filter((item) => !removedIds.has(item.id)));
+      setNotesByNode((prev) => {
+        const next = { ...prev };
+        for (const removedId of removedIds) delete next[removedId];
+        return next;
+      });
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "단계를 삭제하지 못했습니다"
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   async function handleEdit(
     title: string,
     description: string | null
@@ -276,18 +314,29 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
             )}
           </div>
 
-          <Button
-            title="로드맵 제목·설명을 수정합니다"
-            size="sm"
-            onClick={() => {
-              setActionError(null);
-              setEditing(true);
-            }}
-            className="shrink-0"
-          >
-            <PencilIcon className="h-3.5 w-3.5" />
-            수정
-          </Button>
+          <div className="flex shrink-0 gap-2">
+            <Button
+              title="AI가 다음 단계들을 제안합니다"
+              size="sm"
+              onClick={() => setSuggesting(true)}
+              className="border-ai text-ai"
+            >
+              <SparklesIcon className="h-3.5 w-3.5" />
+              AI 제안
+            </Button>
+
+            <Button
+              title="로드맵 제목·설명을 수정합니다"
+              size="sm"
+              onClick={() => {
+                setActionError(null);
+                setEditing(true);
+              }}
+            >
+              <PencilIcon className="h-3.5 w-3.5" />
+              수정
+            </Button>
+          </div>
         </div>
 
         {visible.length > 0 && (
@@ -321,13 +370,17 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
       {!loading && !error && visible.length > 0 && (
         // pt-12: 도구 메뉴가 노드 위로 뜨므로, 맨 윗줄 메뉴가 스크롤
         // 컨테이너에 잘리지 않도록 위쪽 여유를 둡니다.
-        <div className="overflow-x-auto px-4 pt-12">
+        // flex-1 + min-h-0: 컨테이너가 노드 트리 높이만큼만 차지하면
+        // 그 아래 빈 공간에서는 가로 스크롤 제스처가 안 먹습니다.
+        // 화면 남은 높이 전체를 차지하도록 늘려서 어디를 스크롤해도 되게 합니다.
+        <div className="min-h-0 flex-1 overflow-x-auto px-4 pt-12">
           <RoadmapPath
             nodes={visible}
             childrenByParent={childrenByParent}
             notesByNode={notesByNode}
             pendingId={pendingId}
             creatingNoteForId={creatingNoteForId}
+            deletingId={deletingId}
             onChangeStatus={handleChangeStatus}
             onEdit={(node) => {
               setActionError(null);
@@ -345,6 +398,7 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
               setActionError(null);
               setAddingChildFor(parent);
             }}
+            onDeleteNode={handleDeleteNode}
           />
         </div>
       )}
@@ -405,6 +459,20 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
 
               {actionError && <ErrorText>{actionError}</ErrorText>}
             </>
+          )}
+        </Modal>
+      )}
+
+      {suggesting && (
+        <Modal onClose={() => setSuggesting(false)}>
+          {(close) => (
+            <RoadmapSuggestionModal
+              roadmapId={id}
+              onClose={close}
+              onCreate={(title, description) =>
+                handleCreateNode(null, title, description)
+              }
+            />
           )}
         </Modal>
       )}

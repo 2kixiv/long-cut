@@ -1,19 +1,23 @@
 import type { RoadmapNode } from "../lib/api";
 import { STATUS_LABELS, nextStatus } from "../lib/status";
-import { FileTextIcon, PencilIcon, PlusIcon, StatusIcon } from "./ui/icons";
+import { FileTextIcon, PencilIcon, PlusIcon, StatusIcon, TrashIcon } from "./ui/icons";
 
 interface Props {
   node: RoadmapNode;
   pending: boolean;
   creatingNote: boolean;
+  deleting: boolean;
   onChangeStatus: (node: RoadmapNode) => void;
   onEdit: (node: RoadmapNode) => void;
   onAddChild: (node: RoadmapNode) => void;
   onCreateNote: (node: RoadmapNode) => void;
+  onDelete: (node: RoadmapNode) => void;
 }
 
 const BUTTON =
   "flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded text-muted transition hover:bg-raised hover:text-ink active:scale-90 disabled:cursor-default disabled:opacity-40";
+const DELETE_BUTTON =
+  "flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded text-muted transition hover:bg-raised hover:text-danger active:scale-90 disabled:cursor-default disabled:opacity-40";
 
 /**
  * 노드 위에 떠서 나타나는 도구 모음입니다.
@@ -27,10 +31,12 @@ export function NodeActions({
   node,
   pending,
   creatingNote,
+  deleting,
   onChangeStatus,
   onEdit,
   onAddChild,
   onCreateNote,
+  onDelete,
 }: Props) {
   return (
     <div
@@ -78,6 +84,17 @@ export function NodeActions({
           className={BUTTON}
         >
           <FileTextIcon className="h-4 w-4" />
+        </button>
+
+        <button
+          type="button"
+          disabled={deleting}
+          aria-label="이 단계 삭제"
+          title="이 단계 삭제 (하위 단계·기록도 함께 삭제됩니다)"
+          onClick={() => onDelete(node)}
+          className={DELETE_BUTTON}
+        >
+          <TrashIcon className="h-4 w-4" />
         </button>
       </div>
     </div>

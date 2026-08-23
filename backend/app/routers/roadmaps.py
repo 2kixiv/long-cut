@@ -7,7 +7,7 @@ from app.deps import CurrentUser, Db, OwnedNote, OwnedRoadmap, OwnedRoadmapNode,
 
 from app.models.roadmaps import Roadmap, RoadmapNode
 from app.models.notes import Note
-from app.summarize import summarize_note
+from app.llm import SuggestedRoadmap, SuggestedNode, suggest_roadmap, summarize_note
 
 router = APIRouter(prefix="/roadmaps", tags=["roadmaps"])
 
@@ -130,6 +130,11 @@ def update_roadmap_node(
 
     return roadmap_node
 
+@router.delete("/{roadmap_id}/nodes/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete(roadmap_node: OwnedRoadmapNode, db: Db) -> None:
+    db.delete(roadmap_node)
+    db.commit()
+
 @router.post("/{roadmap_id}/nodes/{node_id}/notes", status_code=status.HTTP_201_CREATED)
 def create_note(
     req: NoteCreate,
@@ -191,3 +196,17 @@ def summarize_note_endpoint(note: OwnedNote, db: Db) -> NoteResponse:
     db.refresh(note)
 
     return note
+
+@router.post("/{roadmap_id}/suggest-roadmap")
+def suggest_roadmap_endpoint(roadmap: OwnedRoadmap) -> list[SuggestedNode]:
+    existing_titles = [
+        node.title for node in roadmap.nodes if node.parent_node_id is None
+    ]
+
+    nodes = suggest_roadmap(
+        title=roadmap.title,
+        description=roadmap.description,
+        existing_titles=existing_titles
+    )
+
+    return [SuggestedNode(title=s.title, description=s.description) for s in nodes]

@@ -1,5 +1,5 @@
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import backref, relationship
 
 from app.database import Base
 
@@ -29,3 +29,8 @@ class RoadmapNode(Base):
 
     roadmap = relationship("Roadmap", back_populates="nodes")
     notes = relationship("Note", back_populates="node", cascade="all, delete-orphan")
+    children = relationship(
+        "RoadmapNode",
+        cascade="all, delete-orphan",
+        backref=backref("parent", remote_side=[id]),
+    )

@@ -12,11 +12,13 @@ interface SharedProps {
   notesByNode: Record<number, Note[] | null>;
   pendingId: number | null;
   creatingNoteForId: number | null;
+  deletingId: number | null;
   onChangeStatus: (node: RoadmapNode) => void;
   onEdit: (node: RoadmapNode) => void;
   onAddChild: (node: RoadmapNode) => void;
   onOpenNote: (node: RoadmapNode, note: Note) => void;
   onCreateNote: (node: RoadmapNode) => void;
+  onDelete: (node: RoadmapNode) => void;
 }
 
 interface Props extends SharedProps {
@@ -106,10 +108,12 @@ function NodeRow({
   isLast,
   pendingId,
   creatingNoteForId,
+  deletingId,
   onChangeStatus,
   onEdit,
   onAddChild,
   onCreateNote,
+  onDelete,
 }: NodeRowProps) {
   return (
     <div className="flex animate-rise items-stretch">
@@ -120,10 +124,12 @@ function NodeRow({
           node={node}
           pending={pendingId === node.id}
           creatingNote={creatingNoteForId === node.id}
+          deleting={deletingId === node.id}
           onChangeStatus={onChangeStatus}
           onEdit={onEdit}
           onAddChild={onAddChild}
           onCreateNote={onCreateNote}
+          onDelete={onDelete}
         />
 
         <span

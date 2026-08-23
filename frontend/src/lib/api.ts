@@ -162,6 +162,23 @@ export function createNode(
         body: JSON.stringify(req),
     });
 }
+
+export async function deleteNode(roadmapId: number, nodeId: number): Promise<void> {
+    await apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}`, {
+        method: "DELETE",
+    });
+}
+
+export interface SuggestedNode {
+    title: string;
+    description: string;
+}
+
+export function suggestNodes(roadmapId: number): Promise<SuggestedNode[]> {
+    return apiFetch(`/roadmaps/${roadmapId}/suggest-roadmap`, {
+        method: "POST",
+    });
+}
 export interface Note {
     id: number;
     node_id: number;

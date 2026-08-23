@@ -23,3 +23,30 @@ export function groupChildren(nodes: RoadmapNode[]): Record<number, RoadmapNode[
 
     return groups;
 }
+
+/**
+ * 노드를 지우면 백엔드가 자식까지 cascade로 같이 지웁니다. 화면 상태에서도
+ * 그 노드 + 모든 하위 노드를 한 번에 걷어내기 위한 id 집합을 구합니다.
+ */
+export function collectSubtreeIds(nodes: RoadmapNode[], rootId: number): Set<number> {
+    const ids = new Set<number>([rootId]);
+    const childrenByParent = groupChildren(nodes);
+
+    let frontier = [rootId];
+    while (frontier.length > 0) {
+        const next: number[] = [];
+
+        for (const parentId of frontier) {
+            for (const child of childrenByParent[parentId] ?? []) {
+                if (!ids.has(child.id)) {
+                    ids.add(child.id);
+                    next.push(child.id);
+                }
+            }
+        }
+
+        frontier = next;
+    }
+
+    return ids;
+}
