@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom";
-import { deleteNote, getNote, updateNote, type Note } from "../lib/api";
+import { deleteNote, getNote, summarizeNote, updateNote, type Note } from "../lib/api";
 import { useConfirm } from "../hooks/useConfirm";
 import { useAttachments } from "../hooks/useAttachments";
 import type { RoadmapsContext } from "../components/AppLayout";
 import { NoteEditor } from "../components/NoteEditor";
+import { NoteSummaryCallout } from "../components/NoteSummaryCallout";
 import { CenteredMessage, ErrorText } from "../components/ui/Message";
 
 export function NoteDetailPage() {
@@ -58,6 +59,8 @@ function NoteDetailView({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [summarizing, setSummarizing] = useState(false);
+  const [summarizeError, setSummarizeError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,6 +103,22 @@ function NoteDetailView({
       return false;
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSummarize() {
+    setSummarizeError(null);
+    setSummarizing(true);
+
+    try {
+      const updated = await summarizeNote(roadmapId, nodeId, noteId);
+      setNote(updated);
+    } catch (err) {
+      setSummarizeError(
+        err instanceof Error ? err.message : "요약을 생성하지 못했습니다"
+      );
+    } finally {
+      setSummarizing(false);
     }
   }
 
@@ -147,6 +166,15 @@ function NoteDetailView({
         <ErrorText>{error}</ErrorText>
       ) : note ? (
         <div className="flex min-h-0 flex-1 animate-rise flex-col gap-3">
+          {(note.content?.trim() || note.summary) && (
+            <NoteSummaryCallout
+              summary={note.summary}
+              loading={summarizing}
+              error={summarizeError}
+              onGenerate={handleSummarize}
+            />
+          )}
+
           <NoteEditor
             note={note}
             saving={saving}

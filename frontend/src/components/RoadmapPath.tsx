@@ -103,6 +103,7 @@ export function RoadmapPath({
 
       <button
         type="button"
+        title="새 최상위 단계를 추가합니다"
         onClick={onAddNode}
         style={{ height: BAR_HEIGHT, animationDelay: `${nodes.length * STAGGER_MS}ms` }}
         className="flex shrink-0 animate-rise cursor-pointer items-center gap-2 rounded border-2 border-dashed border-line px-3.5 text-faint transition hover:border-ink hover:text-ink active:scale-95"

@@ -31,6 +31,7 @@ export function ConfirmDialog({ options, onResolve }: Props) {
 
           <div className="flex justify-end gap-2">
             <Button
+              title={cancelLabel}
               onClick={() => {
                 result.current = false;
                 close();
@@ -40,6 +41,7 @@ export function ConfirmDialog({ options, onResolve }: Props) {
             </Button>
 
             <Button
+              title={confirmLabel}
               autoFocus
               variant={tone === "danger" ? "danger" : "primary"}
               onClick={() => {

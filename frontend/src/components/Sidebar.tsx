@@ -44,7 +44,7 @@ export function Sidebar({
     <div className="flex h-full flex-col gap-4 border-r border-line bg-surface p-4">
       <div className="flex items-center justify-between">
         <span className="font-semibold tracking-tight">LongCut</span>
-        <Button variant="subtle" size="sm" onClick={logout}>
+        <Button title="로그아웃합니다" variant="subtle" size="sm" onClick={logout}>
           <LogoutIcon className="h-3.5 w-3.5" />
           로그아웃
         </Button>
@@ -62,6 +62,7 @@ export function Sidebar({
         />
       ) : (
         <Button
+          title="새 로드맵을 만듭니다"
           variant="dashed"
           className="animate-rise"
           onClick={() => setAdding(true)}

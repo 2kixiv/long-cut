@@ -73,6 +73,7 @@ class NoteResponse(BaseModel):
     node_id: int
     title: str
     content: str | None = None
+    summary: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
 

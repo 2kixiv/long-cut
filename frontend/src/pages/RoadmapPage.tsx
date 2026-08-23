@@ -277,6 +277,7 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
           </div>
 
           <Button
+            title="로드맵 제목·설명을 수정합니다"
             size="sm"
             onClick={() => {
               setActionError(null);

@@ -7,6 +7,7 @@ from app.deps import CurrentUser, Db, OwnedNote, OwnedRoadmap, OwnedRoadmapNode,
 
 from app.models.roadmaps import Roadmap, RoadmapNode
 from app.models.notes import Note
+from app.summarize import summarize_note
 
 router = APIRouter(prefix="/roadmaps", tags=["roadmaps"])
 
@@ -176,3 +177,17 @@ def update_note(req: NoteUpdate, note: OwnedNote, db: Db) -> NoteResponse:
 def delete_note(note: OwnedNote, db: Db):
     db.delete(note)
     db.commit()
+
+@router.post("/{roadmap_id}/nodes/{node_id}/notes/{note_id}/summarize")
+def summarize_note_endpoint(note: OwnedNote, db: Db) -> NoteResponse:
+    if not note.content or not note.content.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No content to summarize"
+        )
+
+    note.summary = summarize_note(note.title, note.content)
+    db.commit()
+    db.refresh(note)
+
+    return note

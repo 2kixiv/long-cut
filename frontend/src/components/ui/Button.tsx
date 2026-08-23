@@ -23,9 +23,11 @@ const SIZES: Record<Size, string> = {
   md: "gap-2 px-3 py-2 text-sm",
 };
 
-interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface Props extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "title"> {
   variant?: Variant;
   size?: Size;
+  /** hover 시 항상 툴팁으로 뜹니다. 버튼 글자만으로 부족한 설명을 여기 적습니다 */
+  title: string;
 }
 
 export const Button = forwardRef<HTMLButtonElement, Props>(function Button(

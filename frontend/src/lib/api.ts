@@ -167,6 +167,7 @@ export interface Note {
     node_id: number;
     title: string;
     content: string | null;
+    summary: string | null;
     created_at: string;
     updated_at: string | null;
 }
@@ -213,6 +214,16 @@ export function updateNote(
     return apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}/notes/${noteId}`, {
         method: "PATCH",
         body: JSON.stringify(req),
+    });
+}
+
+export function summarizeNote(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number
+): Promise<Note> {
+    return apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}/notes/${noteId}/summarize`, {
+        method: "POST",
     });
 }
 

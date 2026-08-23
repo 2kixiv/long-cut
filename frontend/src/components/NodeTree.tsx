@@ -154,6 +154,7 @@ function NoteRow({ note, guides, isLast, onClick }: NoteRowProps) {
       <div className="flex items-center py-1">
         <button
           type="button"
+          title={note.title}
           onClick={onClick}
           className="inline-flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 whitespace-nowrap text-muted transition hover:bg-raised hover:text-ink"
         >

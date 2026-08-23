@@ -20,6 +20,7 @@ export function Tabs<T extends string>({ options, value, onChange }: Props<T>) {
           <button
             key={option.value}
             type="button"
+            title={option.label}
             onClick={() => onChange(option.value)}
             className={`relative cursor-pointer px-3 py-2 text-sm font-medium transition-colors ${
               active ? "text-ink" : "text-muted hover:text-ink"

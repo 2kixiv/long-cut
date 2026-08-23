@@ -65,7 +65,13 @@ export function SignupPage() {
 
           {error && <ErrorText>{error}</ErrorText>}
 
-          <Button ref={submitButtonRef} type="submit" variant="primary" disabled={submitting}>
+          <Button
+            title="회원가입합니다"
+            ref={submitButtonRef}
+            type="submit"
+            variant="primary"
+            disabled={submitting}
+          >
             {submitting ? "가입 중..." : "회원가입"}
           </Button>
         </form>

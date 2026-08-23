@@ -69,6 +69,7 @@ export function TitleDescriptionForm({
 
       <div className="flex gap-2">
         <Button
+          title={submitLabel}
           type="submit"
           variant="primary"
           size={size}
@@ -78,7 +79,7 @@ export function TitleDescriptionForm({
         </Button>
 
         {onCancel && (
-          <Button size={size} onClick={onCancel}>
+          <Button title="취소하고 닫습니다" size={size} onClick={onCancel}>
             취소
           </Button>
         )}

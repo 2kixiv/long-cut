@@ -62,7 +62,13 @@ export function LoginPage() {
 
           {error && <ErrorText>{error}</ErrorText>}
 
-          <Button ref={submitButtonRef} type="submit" variant="primary" disabled={submitting}>
+          <Button
+            title="로그인합니다"
+            ref={submitButtonRef}
+            type="submit"
+            variant="primary"
+            disabled={submitting}
+          >
             {submitting ? "로그인 중..." : "로그인"}
           </Button>
         </form>

@@ -291,8 +291,11 @@ export function NoteEditor({
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2">
-        <Button onClick={onCancel}>취소</Button>
+        <Button title="변경 사항을 버리고 나갑니다" onClick={onCancel}>
+          취소
+        </Button>
         <Button
+          title="이 기록을 저장합니다"
           variant="primary"
           disabled={saving || title.trim() === "" || !dirty}
           onClick={handleSave}
