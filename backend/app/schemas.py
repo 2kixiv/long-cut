@@ -59,3 +59,33 @@ class RoadmapNodeResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class NoteCreate(BaseModel):
+    title: str
+    content: str | None = None
+
+class NoteUpdate(BaseModel):
+    title: str | None = None
+    content: str | None = None
+
+class NoteResponse(BaseModel):
+    id: int
+    node_id: int
+    title: str
+    content: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+class AttachmentResponse(BaseModel):
+    id: int
+    note_id: int
+    filename: str
+    content_type: str
+    size: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
@@ -6,10 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
-from app.models.roadmaps import Roadmap
+from app.models.roadmaps import Roadmap, RoadmapNode
+from app.models.notes import Note
 from app.auth import SECRET_KEY, ALGORITHM
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+Db = Annotated[Session, Depends(get_db)]
 
 def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -36,10 +41,12 @@ def get_current_user(
 
     return user
 
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
 def get_owned_roadmap(
     roadmap_id: int,
-    current_user: User,
-    db: Session
+    current_user: CurrentUser,
+    db: Db
 ) -> Roadmap:
     roadmap = db.get(Roadmap, roadmap_id)
         
@@ -50,3 +57,39 @@ def get_owned_roadmap(
         )
 
     return roadmap
+
+OwnedRoadmap = Annotated[Roadmap, Depends(get_owned_roadmap)]
+
+def get_owned_roadmap_node(
+    node_id: int,
+    roadmap: OwnedRoadmap,
+    db: Db
+) -> RoadmapNode:
+    node = db.get(RoadmapNode, node_id)
+
+    if node is None or node.roadmap_id != roadmap.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Roadmap node not found",
+        )
+
+    return node
+
+OwnedRoadmapNode = Annotated[RoadmapNode, Depends(get_owned_roadmap_node)]
+
+def get_owned_note(
+    note_id: int,
+    roadmap_node: OwnedRoadmapNode,
+    db: Db
+) -> Note:
+    note = db.get(Note, note_id)
+
+    if note is None or note.node_id != roadmap_node.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Note not found",
+        )
+
+    return note
+
+OwnedNote = Annotated[Note, Depends(get_owned_note)]

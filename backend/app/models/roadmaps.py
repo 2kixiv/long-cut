@@ -28,3 +28,4 @@ class RoadmapNode(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     roadmap = relationship("Roadmap", back_populates="nodes")
+    notes = relationship("Note", back_populates="node", cascade="all, delete-orphan")

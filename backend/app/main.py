@@ -4,8 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.database import Base, engine, get_db
-from app.routers import auth, roadmaps
-from app.models import User, Roadmap
+from app.routers import auth, roadmaps, attachments
 
 app = FastAPI()
 
@@ -30,3 +29,4 @@ def health(db: Session = Depends(get_db)):
 
 app.include_router(auth.router)
 app.include_router(roadmaps.router)
+app.include_router(attachments.router)

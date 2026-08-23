@@ -1,22 +1,20 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.schemas import RoadmapCreate, RoadmapNodeCreate, RoadmapNodeResponse, RoadmapNodeUpdate, RoadmapResponse, RoadmapUpdate
-from app.deps import get_current_user, get_owned_roadmap
+from app.schemas import NoteCreate, NoteResponse, NoteUpdate, RoadmapCreate, RoadmapNodeCreate, RoadmapNodeResponse, RoadmapNodeUpdate, RoadmapResponse, RoadmapUpdate
+from app.deps import CurrentUser, Db, OwnedNote, OwnedRoadmap, OwnedRoadmapNode, get_current_user, get_owned_roadmap, get_owned_roadmap_node
 
-from app.models.user import User
 from app.models.roadmaps import Roadmap, RoadmapNode
+from app.models.notes import Note
 
 router = APIRouter(prefix="/roadmaps", tags=["roadmaps"])
 
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_roadmap(
     req: RoadmapCreate,
-    current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
+    current_user: CurrentUser, 
+    db: Db
 ) -> RoadmapResponse:
     roadmap = Roadmap(
         user_id=current_user.id,
@@ -32,8 +30,8 @@ def create_roadmap(
 
 @router.get("")
 def get_roadmaps(
-    current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
+    current_user: CurrentUser, 
+    db: Db
 ) -> list[RoadmapResponse]:
     roadmaps = (
         db.query(Roadmap)
@@ -45,32 +43,15 @@ def get_roadmaps(
     return roadmaps
 
 @router.get("/{roadmap_id}")
-def get_roadmap(
-    roadmap_id: int,
-    current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
-) -> RoadmapResponse:
-    roadmap = get_owned_roadmap(
-        roadmap_id=roadmap_id,
-        current_user=current_user,
-        db=db
-    )
-    
+def get_roadmap(roadmap: OwnedRoadmap) -> RoadmapResponse:
     return roadmap
 
 @router.patch("/{roadmap_id}")
 def update_roadmap(
-    roadmap_id: int,
     req: RoadmapUpdate,
-    current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
+    roadmap: OwnedRoadmap,
+    db: Db
 ) -> RoadmapResponse:
-    roadmap = get_owned_roadmap(
-        roadmap_id=roadmap_id,
-        current_user=current_user,
-        db=db
-    )
-
     data = req.model_dump(exclude_unset=True)
 
     for field, value in data.items():
@@ -84,32 +65,18 @@ def update_roadmap(
 
 @router.delete("/{roadmap_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_roadmap(
-    roadmap_id: int,
-    current_user: User = Depends(get_current_user), 
-    db: Session = Depends(get_db)
+    roadmap: OwnedRoadmap,
+    db: Db
 ):
-    roadmap = get_owned_roadmap(
-        roadmap_id=roadmap_id,
-        current_user=current_user,
-        db=db
-    )
-
     db.delete(roadmap)
     db.commit()
 
 @router.post("/{roadmap_id}/nodes", status_code=status.HTTP_201_CREATED)
 def create_roadmap_node(
-    roadmap_id: int,
     req: RoadmapNodeCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    roadmap: OwnedRoadmap,
+    db: Db
 ) -> RoadmapNodeResponse:
-    roadmap = get_owned_roadmap(
-        roadmap_id=roadmap_id,
-        current_user=current_user,
-        db=db
-    )
-
     if req.parent_node_id is not None:
         parent = db.get(RoadmapNode, req.parent_node_id)
 
@@ -145,45 +112,67 @@ def create_roadmap_node(
     return roadmap_node
 
 @router.get("/{roadmap_id}/nodes")
-def get_roadmap_nodes(
-    roadmap_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-) -> list[RoadmapNodeResponse]:
-    roadmap = get_owned_roadmap(
-        roadmap_id=roadmap_id,
-        current_user=current_user,
-        db=db
-    )
-
+def get_roadmap_nodes(roadmap: OwnedRoadmap) -> list[RoadmapNodeResponse]:
     return roadmap.nodes
 
 @router.patch("/{roadmap_id}/nodes/{node_id}")
 def update_roadmap_node(
-    roadmap_id: int,
-    node_id: int,
     req: RoadmapNodeUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    roadmap_node: OwnedRoadmapNode,
+    db: Db
 ) -> RoadmapNodeResponse:
-    roadmap = get_owned_roadmap(
-        roadmap_id=roadmap_id,
-        current_user=current_user,
-        db=db
-    )
-    
-    node = db.get(RoadmapNode, node_id)
-
-    if node is None or node.roadmap_id != roadmap.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Roadmap node not found",
-        )
-
     for field, value in req.model_dump(exclude_unset=True).items():
-        setattr(node, field, value)
+        setattr(roadmap_node, field, value)
 
     db.commit()
-    db.refresh(node)
+    db.refresh(roadmap_node)
 
-    return node
+    return roadmap_node
+
+@router.post("/{roadmap_id}/nodes/{node_id}/notes", status_code=status.HTTP_201_CREATED)
+def create_note(
+    req: NoteCreate,
+    roadmap_node: OwnedRoadmapNode,
+    db: Db
+) -> NoteResponse:
+    note = Note(
+        node_id=roadmap_node.id,
+        title=req.title,
+        content=req.content
+    )
+
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+
+    return note
+
+@router.get("/{roadmap_id}/nodes/{node_id}/notes")
+def get_notes(roadmap_node: OwnedRoadmapNode, db: Db) -> list[NoteResponse]:
+    notes = (
+        db.query(Note)
+        .filter(Note.node_id == roadmap_node.id)
+        .order_by(Note.created_at.desc())
+        .all()
+    )
+
+    return notes
+
+@router.get("/{roadmap_id}/nodes/{node_id}/notes/{note_id}")
+def get_note(note: OwnedNote) -> NoteResponse:
+    return note
+
+@router.patch("/{roadmap_id}/nodes/{node_id}/notes/{note_id}")
+def update_note(req: NoteUpdate, note: OwnedNote, db: Db) -> NoteResponse:
+    for field, value in req.model_dump(exclude_unset=True).items():
+        setattr(note, field, value)
+
+    db.commit()
+    db.refresh(note)
+
+    return note
+
+@router.delete("/{roadmap_id}/nodes/{node_id}/notes/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_note(note: OwnedNote, db: Db):
+    db.delete(note)
+    db.commit()
