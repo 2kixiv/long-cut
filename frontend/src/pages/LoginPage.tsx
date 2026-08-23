@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login as loginRequest } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 import { TextInput } from "../components/ui/TextInput";
 import { Button } from "../components/ui/Button";
 import { ErrorText } from "../components/ui/Message";
+import { GoogleLoginButton } from "../components/GoogleLoginButton";
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -14,6 +15,8 @@ export function LoginPage() {
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
+  const [groupWidth, setGroupWidth] = useState<number | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -35,30 +38,47 @@ export function LoginPage() {
     <div className="mx-auto flex min-h-screen max-w-sm animate-rise flex-col justify-center gap-4 px-4">
       <h1 className="text-2xl font-semibold text-center">로그인</h1>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <TextInput
-          type="email"
-          required
-          label="이메일"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <TextInput
-          type="password"
-          required
-          label="비밀번호"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+      <div
+        className="flex w-full flex-col gap-4 self-center"
+        style={groupWidth ? { width: groupWidth } : undefined}
+      >
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <TextInput
+            type="email"
+            required
+            label="이메일"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <TextInput
+            type="password"
+            required
+            label="비밀번호"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
 
-        {error && <ErrorText>{error}</ErrorText>}
+          {error && <ErrorText>{error}</ErrorText>}
 
-        <Button type="submit" variant="primary" disabled={submitting}>
-          {submitting ? "로그인 중..." : "로그인"}
-        </Button>
-      </form>
+          <Button ref={submitButtonRef} type="submit" variant="primary" disabled={submitting}>
+            {submitting ? "로그인 중..." : "로그인"}
+          </Button>
+        </form>
+
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-line" />
+          <span className="text-xs text-faint">또는</span>
+          <div className="h-px flex-1 bg-line" />
+        </div>
+
+        <GoogleLoginButton
+          onError={setError}
+          matchWidthRef={submitButtonRef}
+          onWidthMeasured={setGroupWidth}
+        />
+      </div>
 
       <p className="text-center text-sm text-muted">
         계정이 없으신가요? <Link to="/signup" className="font-medium text-ink underline underline-offset-4 hover:opacity-70">회원가입</Link>

@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import User
-from app.schemas import Token, UserCreate, UserLogin, UserResponse
-from app.auth import hash_password, verify_password, create_access_token
+from app.schemas import GoogleLoginRequest, Token, UserCreate, UserLogin, UserResponse
+from app.auth import hash_password, verify_google_token, verify_password, create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -40,4 +40,40 @@ def login(req: UserLogin, db: Session = Depends(get_db)) -> Token:
 
     access_token = create_access_token(user.id)
 
+    return Token(access_token=access_token)
+
+@router.post("/google")
+def google_login(
+    req: GoogleLoginRequest,
+    db: Session = Depends(get_db)
+) -> Token:
+    payload = verify_google_token(req.credential)
+
+    if not payload.get("email_verified"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google email is not verified"
+        )
+
+    google_sub = payload["sub"]
+    email = payload["email"]
+
+    user = db.query(User).filter(User.google_sub == google_sub).first()
+
+    if user is None:
+        user = db.query(User).filter(User.email == email).first()
+        if user is not None:
+            user.google_sub = google_sub
+        else:
+            user = User(
+                email=email,
+                google_sub=google_sub,
+                password_hash=None
+            )
+            db.add(user)
+
+        db.commit()
+        db.refresh(user)
+
+    access_token = create_access_token(user.id)
     return Token(access_token=access_token)

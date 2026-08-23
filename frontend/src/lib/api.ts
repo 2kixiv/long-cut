@@ -61,6 +61,13 @@ export function login(email: string, password: string): Promise<Token> {
     });
 }
 
+export function loginWithGoogle(credential: string): Promise<Token> {
+    return apiFetch("/auth/google", {
+        method: "POST",
+        body: JSON.stringify({ credential }),
+    });
+}
+
 export interface Roadmap {
     id: number;
     title: string;

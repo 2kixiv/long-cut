@@ -3,14 +3,17 @@ backend/venv/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/.env
+backend/uploads/
 *.pyc
 
 # Node / frontend
 frontend/node_modules/
 frontend/dist/
+frontend/.env
 
 # common
 .DS_Store
 
 # agent 전용
 GUIDE.md
+DESIGN.md
