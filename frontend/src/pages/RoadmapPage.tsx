@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { useOutletContext, useParams } from "react-router-dom";
+import { useNavigate, useOutletContext, useParams } from "react-router-dom";
 import {
   createNode,
+  createNote,
   getNodes,
+  getNotes,
   updateNode,
   updateRoadmap,
+  type Note,
   type Roadmap,
   type RoadmapNode,
 } from "../lib/api";
-import { buildTree } from "../lib/tree";
+import { groupChildren, pathNodes } from "../lib/nodes";
 import { nextStatus } from "../lib/status";
 import { RoadmapPath } from "../components/RoadmapPath";
+import { ProgressBar } from "../components/ui/ProgressBar";
 import { Modal } from "../components/ui/Modal";
 import { TitleDescriptionForm } from "../components/TitleDescriptionForm";
 import { Button } from "../components/ui/Button";
@@ -53,25 +57,35 @@ interface ViewProps {
 
 function RoadmapView({ roadmap, onUpdated }: ViewProps) {
   const id = roadmap.id;
+  const navigate = useNavigate();
 
   const [nodes, setNodes] = useState<RoadmapNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [addingRoot, setAddingRoot] = useState(false);
+  // "하위 단계 추가"로 지정된 부모 노드. null이면 닫힌 상태입니다.
+  const [addingChildFor, setAddingChildFor] = useState<RoadmapNode | null>(null);
   const [creating, setCreating] = useState(false);
 
-  // 방사형 도구에서 띄우는 폼. 대상 노드를 담고 있으며 null이면 닫힌 상태입니다.
+  // 도구에서 띄우는 수정 폼. 대상 노드를 담고 있으며 null이면 닫힌 상태입니다.
   const [editingNode, setEditingNode] = useState<RoadmapNode | null>(null);
-  const [parentNode, setParentNode] = useState<RoadmapNode | null>(null);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingNodeId, setSavingNodeId] = useState<number | null>(null);
+
+  // 노드별 기록. 트리에 상시 노출되므로 노드를 불러올 때 함께 받아옵니다.
+  const [notesByNode, setNotesByNode] = useState<Record<number, Note[] | null>>(
+    {}
+  );
+  // 기록을 새로 만드는 중인 노드 id (완료되면 상세 페이지로 이동합니다)
+  const [creatingNoteForId, setCreatingNoteForId] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -79,7 +93,20 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
     async function load() {
       try {
         const data = await getNodes(id);
-        if (!cancelled) setNodes(data);
+        if (cancelled) return;
+
+        setNodes(data);
+
+        // 기록이 트리에 상시 노출되므로 노드마다 미리 받아둡니다.
+        // 노드 수만큼 요청이 나가므로, 로드맵이 커지면 백엔드에
+        // "로드맵의 모든 기록" 엔드포인트를 두는 편이 낫습니다.
+        const entries = await Promise.all(
+          data.map(
+            async (node) => [node.id, await getNotes(id, node.id)] as const
+          )
+        );
+
+        if (!cancelled) setNotesByNode(Object.fromEntries(entries));
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -98,7 +125,39 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
     };
   }, [id]);
 
-  const tree = useMemo(() => buildTree(nodes), [nodes]);
+  const visible = useMemo(() => pathNodes(nodes), [nodes]);
+  const childrenByParent = useMemo(() => groupChildren(nodes), [nodes]);
+
+  const doneCount = visible.filter((node) => node.status === "done").length;
+  const inProgressCount = visible.filter(
+    (node) => node.status === "in_progress"
+  ).length;
+  const progress =
+    visible.length === 0 ? 0 : Math.round((doneCount / visible.length) * 100);
+  const inProgressPercent =
+    visible.length === 0 ? 0 : Math.round((inProgressCount / visible.length) * 100);
+
+  // "새 기록"을 누르면 빈 기록을 바로 만들고 상세 페이지로 보냅니다.
+  // 제목은 상세 페이지에서 바로 고칠 수 있습니다.
+  async function handleQuickCreateNote(node: RoadmapNode) {
+    setActionError(null);
+    setCreatingNoteForId(node.id);
+
+    try {
+      const created = await createNote(id, node.id, {
+        title: "새 기록",
+        content: "",
+      });
+
+      navigate(`/roadmaps/${id}/nodes/${node.id}/notes/${created.id}`);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "기록을 만들지 못했습니다"
+      );
+    } finally {
+      setCreatingNoteForId(null);
+    }
+  }
 
   async function handleChangeStatus(node: RoadmapNode) {
     setActionError(null);
@@ -147,7 +206,7 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
   }
 
   async function handleCreateNode(
-    parentNodeId: number | null,
+    parentId: number | null,
     title: string,
     description: string | null
   ): Promise<boolean> {
@@ -158,11 +217,14 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
       const created = await createNode(id, {
         title,
         description,
-        parent_node_id: parentNodeId,
+        parent_node_id: parentId,
       });
 
-      // buildTree가 order_index로 다시 정렬하므로 뒤에 붙여도 됩니다
+      // pathNodes/groupChildren이 order_index로 다시 정렬하므로 뒤에 붙여도 됩니다
       setNodes((prev) => [...prev, created]);
+      // 새 노드는 기록이 없습니다. 빈 배열을 넣어두지 않으면 트리가
+      // "아직 안 불러온 상태"로 오해합니다.
+      setNotesByNode((prev) => ({ ...prev, [created.id]: [] }));
       return true;
     } catch (err) {
       setActionError(
@@ -196,62 +258,94 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-8">
-      <div className="flex animate-rise items-start justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            {roadmap.title}
-          </h1>
-          {roadmap.description && (
-            <p className="text-sm text-muted">{roadmap.description}</p>
-          )}
+    <div className="flex w-full flex-1 flex-col gap-6 py-8">
+      {/* 제목·설명·진행률 요약은 읽기 편하도록 좁은 칼럼에 고정합니다 */}
+      <div className="mx-auto w-full max-w-2xl px-4">
+        <div className="flex animate-rise items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h1 className="truncate text-2xl font-semibold tracking-tight">
+              {roadmap.title}
+            </h1>
+            {roadmap.description && (
+              <span
+                title={roadmap.description}
+                className="inline-block max-w-xs truncate rounded-full border border-line bg-surface px-3 py-1 text-xs text-muted"
+              >
+                {roadmap.description}
+              </span>
+            )}
+          </div>
+
+          <Button
+            size="sm"
+            onClick={() => {
+              setActionError(null);
+              setEditing(true);
+            }}
+            className="shrink-0"
+          >
+            <PencilIcon className="h-3.5 w-3.5" />
+            수정
+          </Button>
         </div>
 
-        <Button
-          size="sm"
-          onClick={() => {
-            setActionError(null);
-            setEditing(true);
-          }}
-          className="shrink-0"
-        >
-          <PencilIcon className="h-3.5 w-3.5" />
-          수정
-        </Button>
+        {visible.length > 0 && (
+          <div className="animate-rise mt-6 flex items-center gap-3">
+            <ProgressBar
+              value={progress}
+              secondaryValue={inProgressPercent}
+              className="max-w-xs"
+            />
+            <span className="shrink-0 text-xs text-muted tabular-nums">
+              {doneCount}/{visible.length} · {progress}%
+            </span>
+          </div>
+        )}
+
+        {error && <p className="mt-6 text-sm text-danger">{error}</p>}
+        {loading && <p className="mt-6 text-muted">불러오는 중...</p>}
+        {!loading && !error && visible.length === 0 && (
+          <p className="animate-rise mt-6 text-center text-sm text-muted">
+            아직 단계가 없습니다. 아래 + 를 눌러 첫 단계를 만들어 보세요.
+          </p>
+        )}
       </div>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
-
-      {loading ? (
-        <p className="text-muted">불러오는 중...</p>
-      ) : error ? null : (
-        <>
-          {tree.length === 0 && (
-            <p className="animate-rise text-center text-sm text-muted">
-              아직 단계가 없습니다. 아래 + 를 눌러 첫 단계를 만들어 보세요.
-            </p>
-          )}
-
+      {/*
+        경로는 사이드바를 뺀 화면 전체 폭을 씁니다. 최상위 노드가 가로로
+        나열되고 각자의 하위 트리는 자기 노드 아래로만 내려가므로, 노드가
+        많아져도 세로 스크롤이 끝없이 길어지지 않습니다 — 필요하면 이 영역만
+        가로로 스크롤합니다.
+      */}
+      {!loading && !error && visible.length > 0 && (
+        // pt-12: 도구 메뉴가 노드 위로 뜨므로, 맨 윗줄 메뉴가 스크롤
+        // 컨테이너에 잘리지 않도록 위쪽 여유를 둡니다.
+        <div className="overflow-x-auto px-4 pt-12">
           <RoadmapPath
-            nodes={tree}
-            selectedId={selectedId}
+            nodes={visible}
+            childrenByParent={childrenByParent}
+            notesByNode={notesByNode}
             pendingId={pendingId}
-            onSelect={setSelectedId}
+            creatingNoteForId={creatingNoteForId}
             onChangeStatus={handleChangeStatus}
             onEdit={(node) => {
               setActionError(null);
               setEditingNode(node);
             }}
-            onAddChild={(node) => {
-              setActionError(null);
-              setParentNode(node);
-            }}
-            onAddRoot={() => {
+            onOpenNote={(node, note) =>
+              navigate(`/roadmaps/${id}/nodes/${node.id}/notes/${note.id}`)
+            }
+            onCreateNote={handleQuickCreateNote}
+            onAddNode={() => {
               setActionError(null);
               setAddingRoot(true);
             }}
+            onAddChildNode={(parent) => {
+              setActionError(null);
+              setAddingChildFor(parent);
+            }}
           />
-        </>
+        </div>
       )}
 
       {editingNode && (
@@ -275,40 +369,6 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
                   );
                   if (saved) close();
                   return saved;
-                }}
-                onCancel={close}
-              />
-
-              {actionError && <ErrorText>{actionError}</ErrorText>}
-            </>
-          )}
-        </Modal>
-      )}
-
-      {parentNode && (
-        <Modal onClose={() => setParentNode(null)}>
-          {(close) => (
-            <>
-              <h2 className="text-lg font-semibold tracking-tight">
-                하위 단계 추가
-              </h2>
-              <p className="-mt-2 text-sm text-muted">
-                {parentNode.title} 아래에 새 단계를 만듭니다.
-              </p>
-
-              <TitleDescriptionForm
-                titleLabel="단계 제목"
-                submitLabel="추가"
-                submittingLabel="추가 중..."
-                submitting={creating}
-                onSubmit={async (title, description) => {
-                  const created = await handleCreateNode(
-                    parentNode.id,
-                    title,
-                    description
-                  );
-                  if (created) close();
-                  return created;
                 }}
                 onCancel={close}
               />
@@ -363,6 +423,38 @@ function RoadmapView({ roadmap, onUpdated }: ViewProps) {
                 submitting={creating}
                 onSubmit={async (title, description) => {
                   const created = await handleCreateNode(null, title, description);
+                  if (created) close();
+                  return created;
+                }}
+                onCancel={close}
+              />
+
+              {actionError && <ErrorText>{actionError}</ErrorText>}
+            </>
+          )}
+        </Modal>
+      )}
+
+      {addingChildFor && (
+        <Modal onClose={() => setAddingChildFor(null)}>
+          {(close) => (
+            <>
+              <h2 className="text-lg font-semibold tracking-tight">
+                하위 단계 추가
+              </h2>
+              <p className="-mt-2 text-sm text-muted">{addingChildFor.title} 아래에</p>
+
+              <TitleDescriptionForm
+                titleLabel="단계 제목"
+                submitLabel="추가"
+                submittingLabel="추가 중..."
+                submitting={creating}
+                onSubmit={async (title, description) => {
+                  const created = await handleCreateNode(
+                    addingChildFor.id,
+                    title,
+                    description
+                  );
                   if (created) close();
                   return created;
                 }}

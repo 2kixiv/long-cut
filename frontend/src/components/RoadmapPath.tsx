@@ -1,266 +1,126 @@
-import type { RoadmapNode } from "../lib/api";
-import type { TreeNode } from "../lib/tree";
-import { countDone } from "../lib/tree";
-import { STATUS_CIRCLES, STATUS_LABELS, nextStatus } from "../lib/status";
-import {
-  WIDTH,
-  buildBranchData,
-  buildLayout,
-  buildPathData,
-  lastDoneIndex,
-} from "../lib/layout";
-import { NodeToolbar, type Tool } from "./NodeToolbar";
-import { PencilIcon, PlusIcon, StatusIcon } from "./ui/icons";
+import { Fragment } from "react";
+import type { Note, RoadmapNode } from "../lib/api";
+import { STATUS_BAR } from "../lib/status";
+import { NodeActions } from "./NodeActions";
+import { NodeTree } from "./NodeTree";
+import { PlusIcon, StatusIcon } from "./ui/icons";
 
 const STAGGER_MS = 70;
+/** 최상위 화살표 바의 높이. 칸 사이 연결선을 이 높이의 절반에 맞춥니다. */
+const BAR_HEIGHT = 40;
+/** 화살촉이 파고드는 깊이 */
+const NOTCH = 16;
 
 interface Props {
-  nodes: TreeNode[];
-  selectedId: number | null;
+  nodes: RoadmapNode[];
+  /** 부모 id별 하위 노드 목록 */
+  childrenByParent: Record<number, RoadmapNode[]>;
+  /** 노드 id별 기록 목록. 트리에 상시 노출됩니다. */
+  notesByNode: Record<number, Note[] | null>;
   pendingId: number | null;
-  onSelect: (id: number | null) => void;
+  /** 기록을 새로 만드는 중인 노드 id */
+  creatingNoteForId: number | null;
   onChangeStatus: (node: RoadmapNode) => void;
   onEdit: (node: RoadmapNode) => void;
-  onAddChild: (node: RoadmapNode) => void;
-  onAddRoot: () => void;
+  onOpenNote: (node: RoadmapNode, note: Note) => void;
+  onCreateNote: (node: RoadmapNode) => void;
+  onAddNode: () => void;
+  onAddChildNode: (parent: RoadmapNode) => void;
 }
 
+/**
+ * 최상위 노드를 가로로 나열하고, 각 노드 아래에 자기 기록과 하위 트리를
+ * 파일 탐색기처럼 그립니다. 절대 좌표 대신 일반 흐름(flex)으로 배치해서
+ * 제목이 길어도 잘리지 않고 옆 칸을 침범하지 않습니다.
+ */
 export function RoadmapPath({
   nodes,
-  selectedId,
+  childrenByParent,
+  notesByNode,
   pendingId,
-  onSelect,
+  creatingNoteForId,
   onChangeStatus,
   onEdit,
-  onAddChild,
-  onAddRoot,
+  onOpenNote,
+  onCreateNote,
+  onAddNode,
+  onAddChildNode,
 }: Props) {
-  // 하위 단계를 고른 상태에서도 부모는 펼쳐진 채로 둡니다
-  const expandedId =
-    nodes.find(
-      (node) =>
-        node.id === selectedId ||
-        node.children.some((child) => child.id === selectedId)
-    )?.id ?? null;
-
-  const layout = buildLayout(nodes, expandedId);
-  const doneIndex = lastDoneIndex(nodes);
-
-  const mainPoints = [...layout.nodes, layout.addPoint];
-  const progressPoints = layout.nodes.slice(0, doneIndex + 1);
-
-  function toolsFor(node: RoadmapNode, canAddChild: boolean): Tool[] {
-    const tools: Tool[] = [
-      {
-        key: "status",
-        label: `${STATUS_LABELS[nextStatus(node.status)]}로 바꾸기`,
-        icon: <StatusIcon status={node.status} className="h-4 w-4" />,
-        disabled: pendingId === node.id,
-        onClick: () => onChangeStatus(node),
-      },
-      {
-        key: "edit",
-        label: "수정",
-        icon: <PencilIcon className="h-4 w-4" />,
-        onClick: () => onEdit(node),
-      },
-    ];
-
-    if (canAddChild) {
-      tools.push({
-        key: "add",
-        label: "하위 단계 추가",
-        icon: <PlusIcon className="h-4 w-4" />,
-        onClick: () => onAddChild(node),
-      });
-    }
-
-    return tools;
-  }
+  const shared = {
+    childrenByParent,
+    notesByNode,
+    pendingId,
+    creatingNoteForId,
+    onChangeStatus,
+    onEdit,
+    onAddChild: onAddChildNode,
+    onOpenNote,
+    onCreateNote,
+  };
 
   return (
-    <div
-      className="relative mx-auto"
-      style={{ width: WIDTH, height: layout.height }}
-      // 빈 곳을 누르면 선택이 풀립니다
-      onClick={() => onSelect(null)}
-    >
-      <svg
-        className="absolute inset-0"
-        width={WIDTH}
-        height={layout.height}
-        aria-hidden="true"
-      >
-        <path
-          d={buildPathData(mainPoints)}
-          fill="none"
-          stroke="var(--color-line)"
-          strokeWidth={6}
-          strokeLinecap="round"
-          strokeDasharray="2 16"
-        />
+    <div className="flex items-start gap-4 pb-4">
+      {nodes.map((node, index) => (
+        <Fragment key={node.id}>
+          {index > 0 && <StepConnector />}
 
-        {progressPoints.length > 1 && (
-          // 완료 지점이 늘어날 때마다 선이 다시 그려지도록 key를 바꿉니다
-          <path
-            key={`${doneIndex}-${expandedId}`}
-            d={buildPathData(progressPoints)}
-            fill="none"
-            stroke="var(--color-ink)"
-            strokeWidth={4}
-            strokeLinecap="round"
-            pathLength={1}
-            strokeDasharray={1}
-            className="animate-draw"
-          />
-        )}
-
-        {layout.nodes.map((placed) =>
-          placed.children.length > 0 ? (
-            <path
-              key={`branch-${placed.node.id}`}
-              d={buildBranchData(placed, placed.children)}
-              fill="none"
-              stroke="var(--color-line)"
-              strokeWidth={3}
-              strokeLinecap="round"
-              strokeDasharray="2 10"
-              pathLength={1}
-              className="animate-draw"
-            />
-          ) : null
-        )}
-      </svg>
-
-      {layout.nodes.map((placed) => {
-        const { node, index } = placed;
-        const selected = selectedId === node.id;
-        const done = countDone(node.children);
-
-        return (
           <div
-            key={node.id}
-            style={{ left: placed.x, top: placed.y }}
-            className="absolute -translate-x-1/2 -translate-y-1/2"
+            className="flex animate-rise flex-col gap-2"
+            style={{ animationDelay: `${index * STAGGER_MS}ms` }}
           >
-            {selected && (
-              <NodeToolbar size="md" radius={64} tools={toolsFor(node, true)} />
-            )}
+            <div className="group/row relative flex w-fit items-center">
+              <NodeActions
+                node={node}
+                pending={pendingId === node.id}
+                creatingNote={creatingNoteForId === node.id}
+                onChangeStatus={onChangeStatus}
+                onEdit={onEdit}
+                onAddChild={onAddChildNode}
+                onCreateNote={onCreateNote}
+              />
 
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(selected ? null : node.id);
-              }}
-              style={{ animationDelay: `${index * STAGGER_MS}ms` }}
-              className="group flex animate-rise cursor-pointer flex-col items-center gap-1.5 outline-none"
-            >
               <span
+                // status를 key로 두면 상태가 바뀔 때 요소가 다시 마운트되어
+                // pop 애니메이션이 매번 재생됩니다.
                 key={node.status}
-                className={`flex h-16 w-16 items-center justify-center rounded-full border-2 text-lg font-semibold transition-[background-color,border-color,color,transform] duration-200 group-hover:scale-105 group-active:scale-95 ${
-                  STATUS_CIRCLES[node.status]
-                } ${node.status === "done" ? "animate-pop" : ""} ${
-                  selected ? "ring-4 ring-raised" : ""
-                }`}
-              >
-                {node.status === "done" ? "✓" : index + 1}
-              </span>
-
-              <span
-                className={`truncate text-center text-sm font-medium transition-all duration-200 group-hover:text-ink ${
-                  selected ? "w-20" : "w-28"
-                }`}
-              >
-                {node.title}
-              </span>
-
-              {node.children.length > 0 && (
-                <span className="text-xs text-faint tabular-nums">
-                  {done}/{node.children.length}
-                </span>
-              )}
-            </button>
-          </div>
-        );
-      })}
-
-      {layout.nodes.flatMap((placed) =>
-        placed.children.map((child, childIndex) => {
-          const selected = selectedId === child.node.id;
-
-          return (
-            <div
-              key={child.node.id}
-              style={{ left: child.x, top: child.y }}
-              className="absolute -translate-x-1/2 -translate-y-1/2"
-            >
-              {selected && (
-                <NodeToolbar
-                  size="sm"
-                  radius={40}
-                  tools={toolsFor(child.node, false)}
-                />
-              )}
-
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelect(selected ? null : child.node.id);
+                style={{
+                  height: BAR_HEIGHT,
+                  clipPath: `polygon(0 0, calc(100% - ${NOTCH}px) 0, 100% 50%, calc(100% - ${NOTCH}px) 100%, 0 100%)`,
                 }}
-                style={{ animationDelay: `${childIndex * 45}ms` }}
-                className="group flex animate-rise cursor-pointer flex-col items-center gap-1 outline-none"
+                className={`inline-flex animate-pop items-center gap-2 pr-7 pl-3.5 font-medium whitespace-nowrap ${STATUS_BAR[node.status]}`}
               >
-                <span
-                  key={child.node.status}
-                  className={`flex h-10 w-10 items-center justify-center rounded-full border-2 text-xs font-semibold transition-[background-color,border-color,color,transform] duration-200 group-hover:scale-110 group-active:scale-95 ${
-                    STATUS_CIRCLES[child.node.status]
-                  } ${child.node.status === "done" ? "animate-pop" : ""} ${
-                    selected ? "ring-4 ring-raised" : ""
-                  }`}
-                >
-                  {child.node.status === "done" ? "✓" : childIndex + 1}
-                </span>
-
-                <span
-                  className={`truncate text-center text-xs transition-all duration-200 ${
-                    selected ? "w-16" : "w-24"
-                  } ${
-                    child.node.status === "done"
-                      ? "text-muted line-through"
-                      : "text-ink"
-                  }`}
-                >
-                  {child.node.title}
-                </span>
-              </button>
+                <StatusIcon status={node.status} className="h-4 w-4 shrink-0" />
+                <span className="text-sm">{node.title}</span>
+              </span>
             </div>
-          );
-        })
-      )}
 
-      <div
-        style={{ left: layout.addPoint.x, top: layout.addPoint.y }}
-        className="absolute -translate-x-1/2 -translate-y-1/2"
+            <NodeTree parent={node} {...shared} />
+          </div>
+        </Fragment>
+      ))}
+
+      <StepConnector />
+
+      <button
+        type="button"
+        onClick={onAddNode}
+        style={{ height: BAR_HEIGHT, animationDelay: `${nodes.length * STAGGER_MS}ms` }}
+        className="flex shrink-0 animate-rise cursor-pointer items-center gap-2 rounded border-2 border-dashed border-line px-3.5 text-faint transition hover:border-ink hover:text-ink active:scale-95"
       >
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddRoot();
-          }}
-          style={{ animationDelay: `${nodes.length * STAGGER_MS}ms` }}
-          className="group flex animate-rise cursor-pointer flex-col items-center gap-1.5 outline-none"
-        >
-          <span className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-dashed border-line text-faint transition-[border-color,color,transform] duration-200 group-hover:scale-110 group-hover:border-ink group-hover:text-ink group-active:scale-95">
-            <PlusIcon className="h-6 w-6" />
-          </span>
-          <span className="w-28 text-center text-sm text-faint transition-colors group-hover:text-ink">
-            단계 추가
-          </span>
-        </button>
-      </div>
+        <PlusIcon className="h-4 w-4 shrink-0" />
+        <span className="text-sm whitespace-nowrap">단계 추가</span>
+      </button>
     </div>
+  );
+}
+
+/** 최상위 노드 사이를 잇는 짧은 가로 점선. 바의 세로 가운데에 맞춥니다. */
+function StepConnector() {
+  return (
+    <span
+      aria-hidden="true"
+      className="w-6 shrink-0 border-t-2 border-dotted border-line"
+      style={{ marginTop: BAR_HEIGHT / 2 }}
+    />
   );
 }

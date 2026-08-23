@@ -7,6 +7,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { HomePage } from "./pages/HomePage";
 import { RoadmapPage } from "./pages/RoadmapPage";
+import { NoteDetailPage } from "./pages/NoteDetailPage";
 
 function App() {
   return (
@@ -26,6 +27,10 @@ function App() {
           >
             <Route path="/" element={<HomePage />} />
             <Route path="/roadmaps/:roadmapId" element={<RoadmapPage />} />
+            <Route
+              path="/roadmaps/:roadmapId/nodes/:nodeId/notes/:noteId"
+              element={<NoteDetailPage />}
+            />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

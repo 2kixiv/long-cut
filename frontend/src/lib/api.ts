@@ -3,10 +3,13 @@ const BASE_URL = "http://localhost:8001";
 export async function apiFetch(path: string, options: RequestInit = {}) {
     const token = localStorage.getItem("token");
 
+    // FormData는 Content-Type을 브라우저가 boundary와 함께 직접 설정해야 합니다.
+    const isFormData = options.body instanceof FormData;
+
     const res = await fetch(`${BASE_URL}${path}`, {
         ...options,
         headers: {
-            "Content-Type": "application/json",
+            ...(isFormData ? {} : { "Content-Type": "application/json" }),
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...options.headers,
         },
@@ -151,4 +154,165 @@ export function createNode(
         method: "POST",
         body: JSON.stringify(req),
     });
+}
+export interface Note {
+    id: number;
+    node_id: number;
+    title: string;
+    content: string | null;
+    created_at: string;
+    updated_at: string | null;
+}
+
+export interface NoteCreate {
+    title: string;
+    content?: string | null;
+}
+
+export interface NoteUpdate {
+    title?: string;
+    content?: string | null;
+}
+
+export function getNotes(roadmapId: number, nodeId: number): Promise<Note[]> {
+    return apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}/notes`);
+}
+
+export function getNote(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number
+): Promise<Note> {
+    return apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}/notes/${noteId}`);
+}
+
+export function createNote(
+    roadmapId: number,
+    nodeId: number,
+    req: NoteCreate
+): Promise<Note> {
+    return apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}/notes`, {
+        method: "POST",
+        body: JSON.stringify(req),
+    });
+}
+
+export function updateNote(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number,
+    req: NoteUpdate
+): Promise<Note> {
+    return apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}/notes/${noteId}`, {
+        method: "PATCH",
+        body: JSON.stringify(req),
+    });
+}
+
+export async function deleteNote(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number
+): Promise<void> {
+    await apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}/notes/${noteId}`, {
+        method: "DELETE",
+    });
+}
+
+export interface Attachment {
+    id: number;
+    note_id: number;
+    filename: string;
+    content_type: string;
+    size: number;
+    created_at: string;
+}
+
+export function getAttachments(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number
+): Promise<Attachment[]> {
+    return apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}/notes/${noteId}/attachments`);
+}
+
+export function uploadAttachment(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number,
+    file: File
+): Promise<Attachment> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return apiFetch(`/roadmaps/${roadmapId}/nodes/${nodeId}/notes/${noteId}/attachments`, {
+        method: "POST",
+        body: formData,
+    });
+}
+
+export async function deleteAttachment(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number,
+    attachmentId: number
+): Promise<void> {
+    await apiFetch(
+        `/roadmaps/${roadmapId}/nodes/${nodeId}/notes/${noteId}/attachments/${attachmentId}`,
+        { method: "DELETE" }
+    );
+}
+
+/** 인증 헤더가 필요해 <img src>/<a href>로 바로 열 수 없어서, blob으로 받아옵니다. */
+async function fetchAttachmentBlob(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number,
+    attachmentId: number
+): Promise<Blob> {
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(
+        `${BASE_URL}/roadmaps/${roadmapId}/nodes/${nodeId}/notes/${noteId}/attachments/${attachmentId}`,
+        {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+    );
+
+    if (!res.ok) {
+        throw new Error("파일을 불러오지 못했습니다");
+    }
+
+    return res.blob();
+}
+
+export async function downloadAttachment(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number,
+    attachment: Attachment
+): Promise<void> {
+    const blob = await fetchAttachmentBlob(roadmapId, nodeId, noteId, attachment.id);
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = attachment.filename;
+    a.click();
+
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * 이미지 미리보기용 object URL을 만듭니다. 호출한 쪽에서 다 쓰고 나면
+ * (예: React 클린업에서) URL.revokeObjectURL로 직접 해제해야 합니다.
+ */
+export async function getAttachmentImageUrl(
+    roadmapId: number,
+    nodeId: number,
+    noteId: number,
+    attachmentId: number
+): Promise<string> {
+    const blob = await fetchAttachmentBlob(roadmapId, nodeId, noteId, attachmentId);
+    return URL.createObjectURL(blob);
 }

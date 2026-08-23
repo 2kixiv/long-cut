@@ -92,3 +92,54 @@ export function StatusIcon({
     </Icon>
   );
 }
+
+
+export function NotebookIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M4 4h13a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H4Z" />
+      <path d="M4 4v17" />
+      <path d="M8 9h7" />
+      <path d="M8 13h7" />
+    </Icon>
+  );
+}
+
+export function FileTextIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h4" />
+    </Icon>
+  );
+}
+
+export function PaperclipIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M21.44 11.05 12.25 20.24a5 5 0 0 1-7.07-7.07l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95L10.13 17.1a2 2 0 0 1-2.83-2.83l8.49-8.49" />
+    </Icon>
+  );
+}
+
+export function DownloadIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M4 21h16" />
+    </Icon>
+  );
+}
+
+/** 크기 조절 손잡이용 — 대각선 줄무늬로 "잡아 끌 수 있음"을 나타냅니다 */
+export function ResizeHandleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M21 15 15 21" />
+      <path d="M21 8 8 21" />
+    </Icon>
+  );
+}
